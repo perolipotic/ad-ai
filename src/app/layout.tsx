@@ -5,7 +5,7 @@ import { MainNav } from "@/components/Navigation";
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "kreirajoglas.ai – AI oglasi za nekretnine",
+  title: "kreirajoglas.com – AI oglasi za nekretnine",
   description:
     "Brzo generiraj profesionalan oglas za stan ili kuću uz pomoć AI-ja.",
 };
@@ -26,13 +26,13 @@ export default function RootLayout({
               <Link href="/" className="flex items-center gap-3">
                 <Image
                   src="/images/logo.png"
-                  alt="Logo kreirajoglas.ai"
+                  alt="Logo kreirajoglas.com"
                   width={56}
                   height={56}
                   className="shrink-0"
                 />
                 <span className="text-xl md:text-2xl font-semibold tracking-tight">
-                  kreiraj<span className="text-blue-600">oglas</span>.ai
+                  kreiraj<span className="text-blue-600">oglas</span>.com
                 </span>
               </Link>
 
@@ -52,7 +52,7 @@ export default function RootLayout({
           <footer className="border-t border-slate-200 bg-white/70">
             <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
               <p className="text-xs md:text-sm text-slate-500">
-                © {new Date().getFullYear()} kreirajoglas.ai · MVP projekt za
+                © {new Date().getFullYear()} kreirajoglas.com · MVP projekt za
                 generiranje oglasa za nekretnine.
               </p>
 
