@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { MainNav } from "@/components/Navigation";
 import Image from "next/image";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "kreirajoglas.com – AI oglasi za nekretnine",
@@ -18,6 +19,10 @@ export default function RootLayout({
   return (
     <html lang="hr">
       <body className="min-h-screen bg-slate-50 text-slate-900">
+        <Script
+          src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}`}
+          strategy="afterInteractive"
+        />
         <div className="flex min-h-screen flex-col">
           {/* HEADER / NAV */}
           <header className="border-b border-slate-200 bg-white/80 backdrop-blur-md">

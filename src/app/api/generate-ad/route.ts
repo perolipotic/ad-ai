@@ -1,188 +1,131 @@
-import { NextResponse } from "next/server";
-import { openai } from "../../lib/openai";
+// app/api/generate-ad/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabase } from "../../lib/supabase/server";
+import { getCurrentPeriodStart } from "../../lib/usage";
+import { callOpenAIForAd, type GenerateAdInput } from "../../lib/generateAd";
 
-export async function POST(req: Request) {
+const FREE_ANON_DEVICE_LIMIT = 5;
+
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const supabase = await createServerSupabase();
+    const periodStart = getCurrentPeriodStart();
 
-    const {
-      propertyType,
-      city,
-      neighborhood,
-      areaM2,
-      rooms,
-      floor,
-      totalFloors,
-      condition,
-      price,
-      extraNotes,
-      stylePreset,
-      imageCount,
-      images, // array data URL-ova sa frontenda
-      userEditedTitle,
-      userEditedDescription,
-    } = body as {
-      propertyType: string;
-      city: string;
-      neighborhood?: string;
-      areaM2: string | number;
-      rooms: string | number;
-      floor?: string;
-      totalFloors?: string;
-      condition?: string;
-      price?: string | number;
-      extraNotes?: string;
-      stylePreset?: string;
-      imageCount?: number;
-      images: { dataUrl: string; isFloorplan?: boolean }[];
-      userEditedTitle?: string | null;
-      userEditedDescription?: string | null;
-    };
+    const deviceId = req.headers.get("x-device-id");
+    const resetCountHeader = req.headers.get("x-device-reset-count");
+    const resetCount = resetCountHeader ? Number(resetCountHeader) : 0;
+    const suspect_abuse = resetCount > 0;
 
-    let styleInstruction = "Piši neutralno, jasno i profesionalno.";
-
-    switch (stylePreset) {
-      case "family":
-        styleInstruction =
-          "Naglasak stavi na udobnost, sigurnost, blizinu škola, vrtića i obiteljsku atmosferu. Ton neka bude topao i pristupačan.";
-        break;
-      case "investor":
-        styleInstruction =
-          "Naglasak stavi na isplativost, lokaciju, potencijal najma, povrat na ulaganje i brojke. Ton neka bude informativan i racionalan.";
-        break;
-      case "luxury":
-        styleInstruction =
-          "Naglasak stavi na luksuz, kvalitetu materijala, dizajn, prestižnu lokaciju i detalje. Ton neka bude elegantan i sofisticiran, ali ne pretjerano napuhan.";
-        break;
-      case "short":
-        styleInstruction =
-          "Piši kratko i sažeto, maksimalno 2–3 kraća odlomka, bez nepotrebnog razvlačenja.";
-        break;
-      default:
-        styleInstruction = "Piši neutralno, jasno i profesionalno.";
+    if (!deviceId) {
+      return NextResponse.json(
+        {
+          error: "no_device",
+          message: "Nije moguće identificirati uređaj.",
+          suspect_abuse,
+        },
+        { status: 400 }
+      );
     }
 
-    const textPrompt = `
-Kreiraj oglas za prodaju nekretnine na hrvatskom jeziku.
+    // 1) DEVICE LIMIT (anon_usage_limits)
+    let { data: deviceUsage, error: deviceUsageError } = await supabase
+      .from("anon_usage_limits")
+      .select("*")
+      .eq("device_id", deviceId)
+      .eq("period_start", periodStart)
+      .single();
 
-Podaci (iz forme):
-- Vrsta nekretnine: ${propertyType}
-- Grad: ${city}
-- Kvart / lokacija: ${neighborhood || "—"}
-- Površina: ${areaM2} m²
-- Broj soba: ${rooms}
-- Kat: ${floor || "—"}${totalFloors ? ` od ${totalFloors}` : ""}
-- Stanje: ${condition || "nije navedeno"}
-- Cijena: ${price ? price + " €" : "nije navedena"}
-- Broj slika nekretnine: ${imageCount || 0}
-- Dodatne napomene: ${extraNotes || "nema"}
-
-Slike koje dobiješ dijele se na dvije skupine:
-- slike označene kao TLOCRT: to su crteži rasporeda prostorija (njih koristiš prvenstveno za razumijevanje rasporeda)
-- ostale slike: obične fotografije prostorija, eksterijera, pogleda, dvorišta i slično.
-
-Ako imaš barem jednu sliku tlocrta:
-- detaljno opiši raspored prostorija (npr. ulazni hodnik, lijevo kuhinja, desno dnevni boravak, odvojene spavaće sobe, dvije kupaonice, izlaz na balkon iz dnevnog boravka itd.)
-- naglasi prednosti takvog rasporeda (logičan tlocrt, odvojen spavaći i dnevni dio, malo hodnika, funkcionalan prostor...)
-
-Ako nemaš tlocrt:
-- oslanjaj se na podatke iz forme i vizualni dojam sa običnih fotografija.
-
-Stil pisanja (preset): ${stylePreset || "standard"}
-${styleInstruction}
-
-VAŽNO:
-- Kombiniraj informacije iz teksta i iz slika.
-- Ako na slikama vidiš nešto bitno (npr. moderan namještaj, more, pogled na park, balkon, dvorište, garažu, bazen...), spomeni to u opisu.
-- Nemoj izmišljati stvari koje se ne vide na slikama ili nisu navedene.
-
-1) Prvo generiraj KRATAK NASLOV (max 70 znakova).
-
-2) Zatim generiraj OPIS u nekoliko odlomaka:
-   - prvi odlomak: sažetak (što, gdje, kome je namijenjeno)
-   - drugi dio: raspored prostorija (prema formi + onome što vidiš na slikama)
-   - treći dio: prednosti (lokacija, uređenje, pogled, parking, mirno okruženje...)
-   - završetak: neutralan poziv na kontakt.
-
-Vrati JSON u formatu:
-{
-  "title": "...",
-  "description": "..."
-}
-`.trim();
-
-    // Pripremi image partove za multi-modal input
-    const floorplanImages = images?.filter((i) => i.isFloorplan);
-    const normalImages = images?.filter((i) => !i.isFloorplan);
-
-    const imageParts = [
-      // prvo tlocrt(i), pa normalne fotke
-      ...floorplanImages?.map((img) => ({
-        type: "input_image" as const,
-        image_url: img.dataUrl,
-        detail: "auto" as const,
-      })),
-      ...normalImages.map((img) => ({
-        type: "input_image" as const,
-        image_url: img.dataUrl,
-        detail: "auto" as const,
-      })),
-    ];
-
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: [
+    if (deviceUsageError && deviceUsageError?.code !== "PGRST116") {
+      console.error("Error fetching anon_usage_limits:", deviceUsageError);
+      return NextResponse.json(
         {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: textPrompt,
-            },
-            ...imageParts,
-          ],
+          error: "server_error",
+          message: "Greška kod provjere limita uređaja.",
+          suspect_abuse,
         },
-      ],
-    });
+        { status: 500 }
+      );
+    }
 
-    // prilagodi ovisno o SDK-u
-    // @ts-ignore
+    if (!deviceUsage) {
+      const { data: inserted, error: insertError } = await supabase
+        .from("anon_usage_limits")
+        .insert({
+          device_id: deviceId,
+          period_start: periodStart,
+          ai_generations_used: 0,
+        })
+        .select("*")
+        .single();
 
-    const rawText = (response as any).output_text as string | undefined;
-    // fallback ako zbog neke verzije output_text ne postoji
-    const textToParse =
-      rawText ??
-      // @ts-ignore – fallback na prvi content
-      response.output?.[0]?.content?.[0]?.text ??
-      "";
-
-    let parsed: { title?: string; description?: string } = {};
-
-    try {
-      parsed = JSON.parse(textToParse);
-    } catch {
-      // ako model slučajno vrati nešto s viškom teksta, probaj grublji fallback
-      const match = textToParse.match(/\{[\s\S]*\}/);
-      if (match) {
-        try {
-          parsed = JSON.parse(match[0]);
-        } catch {
-          // zadnji fallback – ništa
-        }
+      if (insertError || !inserted) {
+        console.error("Error inserting anon_usage_limits:", insertError);
+        return NextResponse.json(
+          {
+            error: "server_error",
+            message: "Greška kod inicijalizacije limita za uređaj.",
+            suspect_abuse,
+          },
+          { status: 500 }
+        );
       }
+
+      deviceUsage = inserted;
+    }
+
+    if (deviceUsage.ai_generations_used >= FREE_ANON_DEVICE_LIMIT) {
+      return NextResponse.json(
+        {
+          error: "device_limit_reached",
+          message: "Iskoristio si limit",
+          limit: FREE_ANON_DEVICE_LIMIT,
+          used: deviceUsage.ai_generations_used,
+          remaining: 0,
+          suspect_abuse,
+        },
+        { status: 402 }
+      );
+    }
+
+    // 3) Ako smo prošli limite → pozovi OpenAI
+    const body = (await req.json()) as GenerateAdInput;
+    const result = await callOpenAIForAd(body);
+
+    // 4) Uspješno generiranje → update device_usage + ip_usage
+    const newDeviceUsed = deviceUsage.ai_generations_used + 1;
+
+    const { error: deviceUpdateError } = await supabase
+      .from("anon_usage_limits")
+      .update({
+        ai_generations_used: newDeviceUsed,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq("device_id", deviceId)
+      .eq("period_start", periodStart);
+
+    if (deviceUpdateError) {
+      console.error("Error updating anon_usage_limits:", deviceUpdateError);
     }
 
     return NextResponse.json(
       {
-        title: parsed.title ?? "Oglas za nekretninu",
-        description: parsed.description ?? textToParse, // bar nešto prikaži
+        ...result,
+        usage: {
+          device_limit: FREE_ANON_DEVICE_LIMIT,
+          device_used: newDeviceUsed,
+          device_remaining: Math.max(FREE_ANON_DEVICE_LIMIT - newDeviceUsed, 0),
+        },
+        suspect_abuse,
       },
       { status: 200 }
     );
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: "Greška pri generiranju oglasa" },
+      {
+        error: "Greška pri generiranju oglasa",
+        suspect_abuse: false,
+      },
       { status: 500 }
     );
   }
