@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { getOrCreateDeviceMeta } from "../lib/device";
 
 type GeneratedAd = {
   title: string;
@@ -43,10 +44,26 @@ type CreateAdHandlers = {
 /**
  * HOOK = sva logika i state na jednom mjestu (container)
  */
+
+function useSupabaseUser() {
+  const [user, setUser] = useState<any | null>(null);
+  useEffect(() => {
+    /*   const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ?? null);
+    }); */
+  }, []);
+
+  return user;
+}
+
 function useCreateAdLogic(): {
   state: CreateAdState;
   handlers: CreateAdHandlers;
 } {
+  const user = useSupabaseUser();
+  // optional: fetch user to show email in sidebar (safe: verified with Auth)
+
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState<GeneratedAd | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +107,11 @@ function useCreateAdLogic(): {
       setGenerated(null);
       setError(null);
 
+      const deviceMeta = getOrCreateDeviceMeta();
+      const isLoggedIn = !!user;
+
+      const url = isLoggedIn ? "/api/generate-auth-ad" : "/api/generate-ad";
+
       const formData = new FormData(e.currentTarget);
 
       const payload = {
@@ -115,17 +137,33 @@ function useCreateAdLogic(): {
       };
 
       try {
-        const res = await fetch("/api/generate-ad", {
+        const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-device-id": deviceMeta.id,
+            "x-device-reset-count": String(deviceMeta.resetCount),
+            "x-device-platform": deviceMeta.platform,
+          },
+
           body: JSON.stringify(payload),
         });
-
+        const data = await res.json();
         if (!res.ok) {
-          throw new Error("Nešto je pošlo po zlu");
+          if (data?.error === "limit_reached") {
+            setError(data.message || "Dosegnut je limit korištenja.");
+            setToastMessage(data.message || "Iskoristio si limit");
+            return;
+          }
+
+          if (data?.error === "unauthorized") {
+            setError("Prijavi se za korištenje proširenih limita.");
+            return;
+          }
+
+          throw new Error(data?.message || "Nešto je pošlo po zlu");
         }
 
-        const data = await res.json();
         setGenerated(data);
       } catch (err: any) {
         setError(err.message || "Greška pri generiranju oglasa");
