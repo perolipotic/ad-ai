@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useForm } from "@tanstack/react-form";
 import { getOrCreateDeviceMeta } from "../lib/device";
 
 type GeneratedAd = {
@@ -21,6 +22,12 @@ type ImagePreview = {
   isFloorplan: boolean;
 };
 
+type UsageInfo = {
+  deviceLimit: number | null;
+  deviceUsed: number | null;
+  deviceRemaining: number | null;
+};
+
 type CreateAdState = {
   loading: boolean;
   generated: GeneratedAd | null;
@@ -29,9 +36,11 @@ type CreateAdState = {
   toastMessage: string | null;
   editedTitle: string;
   editedDescription: string;
+  usage: UsageInfo | null;
 };
 
 type CreateAdHandlers = {
+  form: any;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onImagesChange: (e: ChangeEvent<HTMLInputElement>) => void;
   onToggleFloorplan: (index: number) => void;
@@ -41,34 +50,51 @@ type CreateAdHandlers = {
   onEditedDescriptionChange: (value: string) => void;
 };
 
-/**
- * HOOK = sva logika i state na jednom mjestu (container)
- */
+type AdFormValues = {
+  propertyType: string;
+  city: string;
+  neighborhood: string;
+  areaM2: string;
+  rooms: string;
+  floor: string;
+  totalFloors: string;
+  condition: string;
+  price: string;
+  extraNotes: string;
+  stylePreset: string;
+};
 
+/**
+ * Minimalni stub – kasnije samo odkomentiraš Supabase dio
+ */
 function useSupabaseUser() {
   const [user, setUser] = useState<any | null>(null);
+
   useEffect(() => {
-    /*   const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ?? null);
-    }); */
+    // const supabase = createClient();
+    // supabase.auth.getUser().then(({ data }) => {
+    //   setUser(data.user ?? null);
+    // });
   }, []);
 
   return user;
 }
 
+/**
+ * HOOK = sva logika i state na jednom mjestu (container)
+ */
 function useCreateAdLogic(): {
   state: CreateAdState;
   handlers: CreateAdHandlers;
 } {
   const user = useSupabaseUser();
-  // optional: fetch user to show email in sidebar (safe: verified with Auth)
 
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState<GeneratedAd | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<ImagePreview[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
 
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
@@ -100,6 +126,33 @@ function useCreateAdLogic(): {
     });
   }, []);
 
+  /**
+   * TanStack form – drži vrijednosti polja neovisno o tome je li korak 1 ili 2 prikazan.
+   */
+  const form = useForm({
+    defaultValues: {
+      propertyType: "stan",
+      city: "",
+      neighborhood: "",
+      areaM2: "",
+      rooms: "",
+      floor: "",
+      totalFloors: "",
+      condition: "",
+      price: "",
+      extraNotes: "",
+      stylePreset: "standard",
+    },
+  });
+
+  /**
+   * Helper – pretvori "" u undefined, da backend ne dobije hrpu praznih stringova.
+   */
+  const pruneEmpty = <T extends Record<string, any>>(obj: T): T =>
+    Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [k, v === "" ? undefined : v])
+    ) as T;
+
   const onSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
@@ -109,29 +162,31 @@ function useCreateAdLogic(): {
 
       const deviceMeta = getOrCreateDeviceMeta();
       const isLoggedIn = !!user;
-
       const url = isLoggedIn ? "/api/generate-auth-ad" : "/api/generate-ad";
 
-      const formData = new FormData(e.currentTarget);
+      const value = form.state.values;
+
+      const baseFields = pruneEmpty({
+        propertyType: value.propertyType,
+        city: value.city,
+        neighborhood: value.neighborhood,
+        areaM2: value.areaM2,
+        rooms: value.rooms,
+        floor: value.floor,
+        totalFloors: value.totalFloors,
+        condition: value.condition,
+        price: value.price,
+        extraNotes: value.extraNotes,
+        stylePreset: value.stylePreset,
+      });
 
       const payload = {
-        propertyType: formData.get("propertyType") || "",
-        city: formData.get("city") || "",
-        neighborhood: formData.get("neighborhood") || "",
-        areaM2: formData.get("areaM2") || "",
-        rooms: formData.get("rooms") || "",
-        floor: formData.get("floor") || "",
-        totalFloors: formData.get("totalFloors") || "",
-        condition: formData.get("condition") || "",
-        price: formData.get("price") || "",
-        extraNotes: formData.get("extraNotes") || "",
-        stylePreset: formData.get("stylePreset") || "standard",
+        ...baseFields,
         imageCount: images.length,
         images: images.slice(0, 8).map((img) => ({
           dataUrl: img.base64,
           isFloorplan: img.isFloorplan,
         })),
-        // 👇 user edits – backend ih može iskoristiti u promptu
         userEditedTitle: editedTitle || null,
         userEditedDescription: editedDescription || null,
       };
@@ -145,14 +200,20 @@ function useCreateAdLogic(): {
             "x-device-reset-count": String(deviceMeta.resetCount),
             "x-device-platform": deviceMeta.platform,
           },
-
           body: JSON.stringify(payload),
         });
+
         const data = await res.json();
+
         if (!res.ok) {
-          if (data?.error === "limit_reached") {
+          if (
+            data?.error === "limit_reached" ||
+            data?.error === "device_limit_reached"
+          ) {
             setError(data.message || "Dosegnut je limit korištenja.");
-            setToastMessage(data.message || "Iskoristio si limit");
+            setToastMessage(
+              data.message || "Iskoristio si sve besplatne AI opise."
+            );
             return;
           }
 
@@ -164,14 +225,36 @@ function useCreateAdLogic(): {
           throw new Error(data?.message || "Nešto je pošlo po zlu");
         }
 
-        setGenerated(data);
+        setGenerated({
+          title: data.title,
+          description: data.description,
+        });
+
+        if (data.usage) {
+          setUsage({
+            deviceLimit:
+              typeof data.usage.device_limit === "number"
+                ? data.usage.device_limit
+                : null,
+            deviceUsed:
+              typeof data.usage.device_used === "number"
+                ? data.usage.device_used
+                : null,
+            deviceRemaining:
+              typeof data.usage.device_remaining === "number"
+                ? data.usage.device_remaining
+                : null,
+          });
+        } else {
+          setUsage(null);
+        }
       } catch (err: any) {
         setError(err.message || "Greška pri generiranju oglasa");
       } finally {
         setLoading(false);
       }
     },
-    [images, editedTitle, editedDescription]
+    [form, images, editedTitle, editedDescription, user]
   );
 
   const onImagesChange = useCallback(
@@ -239,8 +322,10 @@ function useCreateAdLogic(): {
       toastMessage,
       editedTitle,
       editedDescription,
+      usage,
     },
     handlers: {
+      form,
       onSubmit,
       onImagesChange,
       onToggleFloorplan,
@@ -276,8 +361,9 @@ function CreateAdLayout({
   state: CreateAdState;
   handlers: CreateAdHandlers;
 }) {
-  const { loading, generated, error, images } = state;
-  const { onSubmit, onImagesChange, onToggleFloorplan, onCopy } = handlers;
+  const { loading, generated, error, images, usage } = state;
+  const { onSubmit, onImagesChange, onToggleFloorplan, onCopy, form } =
+    handlers;
 
   // 1 = Osnovno, 2 = Stil & slike, 3 = Oglas
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -301,8 +387,12 @@ function CreateAdLayout({
         </p>
       </div>
 
-      {/* STEP NAV / BREADCRUMBS */}
-      <StepNav currentStep={currentStep} onStepChange={setCurrentStep} />
+      {/* STEP NAV / BREADCRUMBS + usage badge */}
+      <StepNav
+        currentStep={currentStep}
+        onStepChange={setCurrentStep}
+        usage={usage}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr,0.95fr] items-start">
         {/* Forma samo u koracima 1 i 2 */}
@@ -316,6 +406,7 @@ function CreateAdLayout({
             onToggleFloorplan={onToggleFloorplan}
             currentStep={currentStep}
             onStepChange={setCurrentStep}
+            form={form}
           />
         )}
 
@@ -327,30 +418,59 @@ function CreateAdLayout({
 }
 
 /**
- * STEP NAV KOMPONENTA – breadcrumbs za 3 koraka
+ * STEP NAV KOMPONENTA – breadcrumbs za 3 koraka + usage badge
  */
 function StepNav({
   currentStep,
   onStepChange,
+  usage,
 }: {
   currentStep: 1 | 2 | 3;
   onStepChange: (step: 1 | 2 | 3) => void;
+  usage: UsageInfo | null;
 }) {
   const steps: { id: 1 | 2 | 3; label: string; subtitle?: string }[] = [
     {
       id: 1,
       label: "Osnovne informacije",
-      /* subtitle: "tip, lokacija, kvadratura", */
     },
-    { id: 2, label: "Stil & slike" /*  subtitle: "preset + fotografije" */ },
-    { id: 3, label: "Oglas" /* subtitle: "generirani tekst"  */ },
+    { id: 2, label: "Stil & slike" },
+    { id: 3, label: "Oglas" },
   ];
+
+  const isAlmostFull =
+    usage?.deviceLimit != null &&
+    usage.deviceUsed != null &&
+    usage.deviceLimit - usage.deviceUsed <= 1;
 
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 md:px-4 md:py-3">
-      <p className="text-[11px] md:text-xs font-medium uppercase tracking-wide text-slate-500">
-        Koraci
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] md:text-xs font-medium uppercase tracking-wide text-slate-500">
+          Koraci
+        </p>
+
+        {usage && usage.deviceLimit != null && usage.deviceUsed != null && (
+          <div className="text-[10px] md:text-xs text-slate-600">
+            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>
+                Ovaj mjesec:{" "}
+                <strong>
+                  {usage.deviceUsed}/{usage.deviceLimit}
+                </strong>{" "}
+                besplatnih AI oglasa
+              </span>
+            </span>
+            {isAlmostFull && (
+              <span className="ml-2 text-[10px] text-amber-600">
+                Skoro si na limitu – razmisli o izradi računa.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2">
           {steps.map((step) => {
@@ -405,6 +525,7 @@ function AdFormCard({
   onToggleFloorplan,
   currentStep,
   onStepChange,
+  form,
 }: {
   loading: boolean;
   error: string | null;
@@ -414,6 +535,7 @@ function AdFormCard({
   onToggleFloorplan: (index: number) => void;
   currentStep: 1 | 2 | 3;
   onStepChange: (step: 1 | 2 | 3) => void;
+  form: any;
 }) {
   const [imagesOpen, setImagesOpen] = useState(true);
 
@@ -441,96 +563,162 @@ function AdFormCard({
             </h3>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField label="Vrsta nekretnine" required>
-                <select
+                <form.Field
                   name="propertyType"
-                  className="field-input"
-                  required
-                  defaultValue="stan"
-                >
-                  <option value="stan">Stan</option>
-                  <option value="kuca">Kuća</option>
-                  <option value="apartman">Apartman</option>
-                  <option value="zemljiste">Zemljište</option>
-                  <option value="poslovni prostor">Poslovni prostor</option>
-                </select>
+                  children={(field: any) => (
+                    <select
+                      className="field-input"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    >
+                      <option value="stan">Stan</option>
+                      <option value="kuca">Kuća</option>
+                      <option value="apartman">Apartman</option>
+                      <option value="zemljiste">Zemljište</option>
+                      <option value="poslovni prostor">Poslovni prostor</option>
+                    </select>
+                  )}
+                />
               </FormField>
 
               <FormField label="Grad" required>
-                <input
+                <form.Field
                   name="city"
-                  type="text"
-                  className="field-input"
-                  placeholder="npr. Split"
-                  required
+                  children={(field: any) => (
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="npr. Split"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Kvart / lokacija">
-                <input
+                <form.Field
                   name="neighborhood"
-                  type="text"
-                  className="field-input"
-                  placeholder="npr. Meje, centar, Spinut..."
+                  children={(field: any) => (
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="npr. Meje, centar, Spinut..."
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Površina (m²)" required>
-                <input
+                <form.Field
                   name="areaM2"
-                  type="number"
-                  min={1}
-                  className="field-input"
-                  placeholder="npr. 65"
-                  required
+                  children={(field: any) => (
+                    <input
+                      type="number"
+                      min={1}
+                      className="field-input"
+                      placeholder="npr. 65"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Broj soba" required>
-                <input
+                <form.Field
                   name="rooms"
-                  type="number"
-                  min={1}
-                  step={0.5}
-                  className="field-input"
-                  placeholder="npr. 2"
-                  required
+                  children={(field: any) => (
+                    <input
+                      type="number"
+                      min={1}
+                      step={0.5}
+                      className="field-input"
+                      placeholder="npr. 2"
+                      required
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Kat">
-                <input
+                <form.Field
                   name="floor"
-                  type="text"
-                  className="field-input"
-                  placeholder="npr. 2."
+                  children={(field: any) => (
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="npr. 2."
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Ukupno katova u zgradi">
-                <input
+                <form.Field
                   name="totalFloors"
-                  type="text"
-                  className="field-input"
-                  placeholder="npr. 4"
+                  children={(field: any) => (
+                    <input
+                      type="text"
+                      className="field-input"
+                      placeholder="npr. 4"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
 
               <FormField label="Stanje">
-                <select name="condition" className="field-input">
-                  <option value="novogradnja">Novogradnja</option>
-                  <option value="uređen stan">Uređen / renoviran</option>
-                  <option value="za adaptaciju">Za adaptaciju</option>
-                  <option value="održavano stanje">Održavano stanje</option>
-                </select>
+                <form.Field
+                  name="condition"
+                  children={(field: any) => (
+                    <select
+                      className="field-input"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    >
+                      <option value="">Odaberi...</option>
+                      <option value="novogradnja">Novogradnja</option>
+                      <option value="uređen stan">Uređen / renoviran</option>
+                      <option value="za adaptaciju">Za adaptaciju</option>
+                      <option value="održavano stanje">Održavano stanje</option>
+                    </select>
+                  )}
+                />
               </FormField>
 
               <FormField label="Cijena (€)">
-                <input
+                <form.Field
                   name="price"
-                  type="number"
-                  min={0}
-                  className="field-input"
-                  placeholder="npr. 220000"
+                  children={(field: any) => (
+                    <input
+                      type="number"
+                      min={0}
+                      className="field-input"
+                      placeholder="npr. 220000"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
             </div>
@@ -545,21 +733,29 @@ function AdFormCard({
                 Stil oglasa
               </h3>
               <FormField label="Stil oglasa (preset)">
-                <select
+                <form.Field
                   name="stylePreset"
-                  className="field-input"
-                  defaultValue="standard"
-                >
-                  <option value="standard">Standardni – profesionalan</option>
-                  <option value="family">Za obitelj – topao ton</option>
-                  <option value="investor">
-                    Za investitore – brojke &amp; ROI
-                  </option>
-                  <option value="luxury">
-                    Luksuz – naglasak na premium detalje
-                  </option>
-                  <option value="short">Kratak oglas – sažeto</option>
-                </select>
+                  children={(field: any) => (
+                    <select
+                      className="field-input"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    >
+                      <option value="standard">
+                        Standardni – profesionalan
+                      </option>
+                      <option value="family">Za obitelj – topao ton</option>
+                      <option value="investor">
+                        Za investitore – brojke &amp; ROI
+                      </option>
+                      <option value="luxury">
+                        Luksuz – naglasak na premium detalje
+                      </option>
+                      <option value="short">Kratak oglas – sažeto</option>
+                    </select>
+                  )}
+                />
                 <p className="mt-1 text-[11px] text-slate-500">
                   Odaberi ton pisanja koji odgovara ciljanoj publici za ovu
                   nekretninu.
@@ -641,10 +837,17 @@ function AdFormCard({
             {/* NAPOMENE */}
             <div className="space-y-3">
               <FormField label="Dodatne napomene (nije obavezno)">
-                <textarea
+                <form.Field
                   name="extraNotes"
-                  className="field-input min-h-[90px]"
-                  placeholder="npr. rok useljenja, namještaj uključen, parking, pogled, blizina škole..."
+                  children={(field: any) => (
+                    <textarea
+                      className="field-input min-h-[90px]"
+                      placeholder="npr. rok useljenja, namještaj uključen, parking, pogled, blizina škole..."
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                  )}
                 />
               </FormField>
             </div>
@@ -745,7 +948,7 @@ function GeneratedAdCard({
       {/* STATE: Korak 3 + rezultat */}
       {generated && !loading && (
         <div className="mt-1 space-y-4">
-          {/* Naslov (read-only za sad) */}
+          {/* Naslov */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-slate-600">
               Naslov oglasa
@@ -758,7 +961,7 @@ function GeneratedAdCard({
             />
           </div>
 
-          {/* Opis (read-only za sad) */}
+          {/* Opis */}
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-slate-600">
               Opis oglasa

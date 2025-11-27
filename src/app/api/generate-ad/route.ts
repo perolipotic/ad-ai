@@ -4,7 +4,7 @@ import { createServerSupabase } from "../../lib/supabase/server";
 import { getCurrentPeriodStart } from "../../lib/usage";
 import { callOpenAIForAd, type GenerateAdInput } from "../../lib/generateAd";
 
-const FREE_ANON_DEVICE_LIMIT = 5;
+const FREE_ANON_DEVICE_LIMIT = 15;
 
 export async function POST(req: NextRequest) {
   try {
