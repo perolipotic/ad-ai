@@ -1,10 +1,12 @@
+// lib/generateAd.ts
 import { openai } from "./openai";
+
 export type GenerateAdInput = {
   propertyType: string;
-  city: string;
+  city?: string;
   neighborhood?: string;
-  areaM2: string | number;
-  rooms: string | number;
+  areaM2?: string | number;
+  rooms?: string | number;
   floor?: string;
   totalFloors?: string;
   condition?: string;
@@ -12,13 +14,13 @@ export type GenerateAdInput = {
   extraNotes?: string;
   stylePreset?: string;
   imageCount?: number;
-  images: { dataUrl: string; isFloorplan?: boolean }[];
+  images?: { dataUrl: string; isFloorplan?: boolean }[];
 };
 
-export function buildTextPrompt(input: GenerateAdInput): string {
+function buildTextPrompt(input: GenerateAdInput): string {
   const {
     propertyType,
-    city,
+    city = "",
     neighborhood,
     areaM2,
     rooms,
@@ -29,6 +31,7 @@ export function buildTextPrompt(input: GenerateAdInput): string {
     extraNotes,
     stylePreset,
     imageCount,
+    images = [],
   } = input;
 
   let styleInstruction = "Piši neutralno, jasno i profesionalno.";
@@ -50,6 +53,8 @@ export function buildTextPrompt(input: GenerateAdInput): string {
       styleInstruction =
         "Piši kratko i sažeto, maksimalno 2–3 kraća odlomka, bez nepotrebnog razvlačenja.";
       break;
+    default:
+      styleInstruction = "Piši neutralno, jasno i profesionalno.";
   }
 
   return `
@@ -59,20 +64,40 @@ Podaci (iz forme):
 - Vrsta nekretnine: ${propertyType}
 - Grad: ${city}
 - Kvart / lokacija: ${neighborhood || "—"}
-- Površina: ${areaM2} m²
-- Broj soba: ${rooms}
+- Površina: ${areaM2 ?? "—"} m²
+- Broj soba: ${rooms ?? "—"}
 - Kat: ${floor || "—"}${totalFloors ? ` od ${totalFloors}` : ""}
 - Stanje: ${condition || "nije navedeno"}
 - Cijena: ${price ? price + " €" : "nije navedena"}
 - Broj slika nekretnine: ${imageCount || 0}
 - Dodatne napomene: ${extraNotes || "nema"}
 
+Slike koje dobiješ dijele se na dvije skupine:
+- slike označene kao TLOCRT: to su crteži rasporeda prostorija (njih koristiš prvenstveno za razumijevanje rasporeda)
+- ostale slike: obične fotografije prostorija, eksterijera, pogleda, dvorišta i slično.
+
+Ako imaš barem jednu sliku tlocrta:
+- detaljno opiši raspored prostorija (npr. ulazni hodnik, lijevo kuhinja, desno dnevni boravak, odvojene spavaće sobe, dvije kupaonice, izlaz na balkon iz dnevnog boravka itd.)
+- naglasi prednosti takvog rasporeda (logičan tlocrt, odvojen spavaći i dnevni dio, malo hodnika, funkcionalan prostor...)
+
+Ako nemaš tlocrt:
+- oslanjaj se na podatke iz forme i vizualni dojam sa običnih fotografija.
+
 Stil pisanja (preset): ${stylePreset || "standard"}
 ${styleInstruction}
 
 VAŽNO:
 - Kombiniraj informacije iz teksta i iz slika.
+- Ako na slikama vidiš nešto bitno (npr. moderan namještaj, more, pogled na park, balkon, dvorište, garažu, bazen...), spomeni to u opisu.
 - Nemoj izmišljati stvari koje se ne vide na slikama ili nisu navedene.
+
+1) Prvo generiraj KRATAK NASLOV (max 70 znakova).
+
+2) Zatim generiraj OPIS u nekoliko odlomaka:
+   - prvi odlomak: sažetak (što, gdje, kome je namijenjeno)
+   - drugi dio: raspored prostorija (prema formi + onome što vidiš na slikama)
+   - treći dio: prednosti (lokacija, uređenje, pogled, parking, mirno okruženje...)
+   - završetak: neutralan poziv na kontakt.
 
 Vrati JSON u formatu:
 {
@@ -81,10 +106,8 @@ Vrati JSON u formatu:
 }
 `.trim();
 }
-
 export async function callOpenAIForAd(input: GenerateAdInput) {
   const textPrompt = buildTextPrompt(input);
-
   const floorplanImages = input.images?.filter((i) => i.isFloorplan);
   const normalImages = input.images?.filter((i) => !i.isFloorplan);
 
@@ -111,7 +134,6 @@ export async function callOpenAIForAd(input: GenerateAdInput) {
     ],
   });
 
-  // parsiranje kao prije
   // @ts-ignore
   const rawText = (response as any).output_text as string | undefined;
   const textToParse =
@@ -121,7 +143,6 @@ export async function callOpenAIForAd(input: GenerateAdInput) {
     "";
 
   let parsed: { title?: string; description?: string } = {};
-
   try {
     parsed = JSON.parse(textToParse);
   } catch {

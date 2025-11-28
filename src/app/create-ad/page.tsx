@@ -379,11 +379,13 @@ function CreateAdLayout({
     <div className="space-y-4">
       {/* BETA traka */}
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs md:text-sm text-amber-800 flex items-start gap-2">
-        <span className="mt-0.5 text-lg">⚠️</span>
+        <span className="text-lg">⚠️</span>
         <p>
           Ovo je <strong>beta verzija</strong>. Tekst oglasa uvijek{" "}
           <strong>pročitaj i po potrebi prilagodi</strong> prije objave na
-          oglasnicima ili slanja klijentima.
+          oglasnicima ili slanja klijentima.{" "}
+          <strong>Ne unosi osobne ili osjetljive podatke</strong> (ime, prezime,
+          telefon, adresa, OIB). Generiraj samo opis!!.
         </p>
       </div>
 
@@ -486,9 +488,6 @@ function StepNav({
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-current text-[11px]">
-                  {step.id}
-                </span>
                 <span className="flex flex-col">
                   <span className="text-[11px] font-semibold">
                     {step.label}

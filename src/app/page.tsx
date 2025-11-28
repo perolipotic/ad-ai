@@ -6,44 +6,45 @@ export default function HomePage() {
       {/* HERO */}
       <section className="grid gap-10 lg:grid-cols-[1.1fr,0.9fr] items-center">
         <div className="space-y-5">
-          {/* MAIN BADGE */}
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 border border-blue-100">
-            <span className="text-[11px] font-medium text-blue-700">
-              AI oglasi • raniji pristup
-            </span>
-          </div>
-
           {/* MINI BADGE S IKONICOM */}
           <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 border border-slate-200">
             <span className="text-[12px]">🏷️</span>
             <span className="text-[11px] font-medium text-slate-700">
-              Sve vrste oglasa na jednom mjestu • nekretnine lansiramo prve
+              Nekretnine, vozila, posao i usluge • nekretnine imaju
+              najnaprednije mogućnosti
             </span>
           </div>
 
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900">
-            Napiši oglas za stan ili kuću{" "}
-            <span className="text-blue-600">kao profesionalac</span>, bez prazne
-            stranice.
+            Napiši oglas za{" "}
+            <span className="text-blue-600">stan, auto ili posao</span> kao
+            profesionalac.
           </h1>
 
           <p className="text-sm md:text-base text-slate-600 max-w-xl">
-            Platforma za generiranje oglasa koja kreće s nekretninama – stanovi
-            i kuće – a kasnije se širi i na druge vrste oglasa. Unesi podatke,
-            dodaj slike (i tlocrt ako ga imaš), a AI će složiti naslov i opis
-            spreman za objavu.
+            Za nekretnine dobivaš detaljan kreator oglasa s fotografijama i
+            tlocrtom. Za vozila, posao i ostale oglase tu je brzi AI generator s
+            jednim promptom koji pretvara tvoje bilješke u gotov oglas.
           </p>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-            <Link
-              href="/create-ad"
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-            >
-              🚀 Kreiraj oglas za nekretninu
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/create-ad"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+              >
+                🚀 Oglas za nekretninu
+              </Link>
+              <Link
+                href="/ads"
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                ✏️ Ostali oglasi (auto, posao, usluge)
+              </Link>
+            </div>
+
             <p className="text-xs text-slate-500">
-              Bez registracije, bez kartice. Danas: nekretnine. Uskoro: i drugi
-              tipovi oglasa.
+              Bez registracije, bez kartice. Besplatan limit za isprobavanje.
             </p>
           </div>
         </div>
@@ -65,7 +66,7 @@ export default function HomePage() {
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="h-32 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-[11px] text-slate-500 border border-slate-200">
-                Trenutno: fotografije stana / kuće
+                Trenutno: fotografije stana / kuće i AI opis
               </div>
               <div className="space-y-2">
                 <div className="h-3 w-52 rounded-full bg-slate-200" />
@@ -93,18 +94,18 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-3">
           <StepCard
             number="1"
-            title="Unesi osnovne podatke"
-            text="Vrsta nekretnine, kvadratura, broj soba, kat, stanje, grad i kvart. Dodaš i napomene ako želiš."
+            title="Odaberi tip oglasa"
+            text="Za nekretnine koristiš detaljan kreator. Za vozila, posao i ostale oglase — brzi AI editor s jednim promptom."
           />
           <StepCard
             number="2"
-            title="Dodaj slike i tlocrt"
-            text="Uploadaš fotografije, a tlocrt možeš označiti jednim klikom. AI ga koristi za puno bolji opis rasporeda."
+            title="Unesi podatke ili napiši bilješke"
+            text="Kod nekretnina unosiš kvadraturu, soba, kat i slike. Kod ostalih oglasa jednostavno opišeš što prodaješ ili nudiš."
           />
           <StepCard
             number="3"
-            title="Kopiraj gotov oglas"
-            text="Naslov i opis u stilu koji odabereš – obiteljski, investitorski, luksuzni ili kratki. Samo copy/paste."
+            title="Dobiješ gotov naslov i opis"
+            text="AI sastavlja smislen, čitljiv oglas koji možeš odmah kopirati na oglasnik i dodatno ga doraditi po želji."
           />
         </div>
       </section>
@@ -117,15 +118,15 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-3">
           <FeatureCard
             title="Štedi vrijeme"
-            text="Umjesto da kreneš od prazne stranice, imaš draft za par sekundi – koji po potrebi malo prilagodiš."
+            text="Umjesto da kreneš od prazne stranice, za par sekundi dobiješ draft oglasa za nekretninu, auto, posao ili uslugu."
           />
           <FeatureCard
             title="Opis koji ima smisla"
-            text="Kombinira podatke iz forme i detalje sa slika – pogotovo tlocrta – da naglasi raspored i stvarne prednosti."
+            text="Kod nekretnina kombinira podatke iz forme i detalje sa slika/tlocrta. Kod ostalih oglasa koristi ono što napišeš u bilješkama."
           />
           <FeatureCard
             title="Fleksibilan stil"
-            text="Različiti presetovi za različitu publiku: kupce koji traže dom, investitore ili premium nekretnine."
+            text="Možeš ići na obiteljski ton, investitorski pristup, luksuzni opis ili kratak, sažet oglas — ovisno o publici."
           />
         </div>
       </section>
@@ -136,10 +137,10 @@ export default function HomePage() {
           Što dolazi sljedeće?
         </h2>
         <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-          Nekretnine su tek prvi use-case. U sljedećim fazama cilj je omogućiti
-          isti AI proces za druge vrste oglasa — vozila, najam opreme, usluge i
-          druge kategorije — uz moderne opcije uređivanja i spremanja više
-          verzija oglasa.
+          Nekretnine su i dalje prvi, najrazrađeniji use-case. Već sada možeš
+          generirati i jednostavne oglase za vozila, posao i usluge, a sljedeći
+          koraci su korisnički računi, spremanje više verzija oglasa i još
+          naprednije prilagodbe stila pisanja.
         </p>
       </section>
 
@@ -150,17 +151,25 @@ export default function HomePage() {
             Spreman isprobati prvi modul?
           </p>
           <p className="text-xs md:text-sm text-slate-500 mt-1 max-w-md">
-            Trenutno podržavamo oglase za nekretnine. Ovo je temelj za širenje
-            na sve vrste oglasa – a tvoja povratna informacija oblikuje
-            platformu.
+            Nekretnine imaju najviše opcija (slike, tlocrt, stilovi). Ako ti
+            treba samo brz tekst oglasa za auto, posao ili uslugu — pokriveno je
+            i to.
           </p>
         </div>
-        <Link
-          href="/create-ad"
-          className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-        >
-          Kreni s oglasom za nekretninu
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/create-ad"
+            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+          >
+            Kreni s oglasom za nekretninu
+          </Link>
+          <Link
+            href="/ads"
+            className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+          >
+            Brzi AI oglas (auto, posao, usluge)
+          </Link>
+        </div>
       </section>
     </main>
   );

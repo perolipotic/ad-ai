@@ -6,9 +6,9 @@ import Image from "next/image";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  title: "kreirajoglas.com – AI oglasi za nekretnine",
+  title: "kreirajoglas.com – AI oglasi za nekretnine, vozila i usluge",
   description:
-    "Brzo generiraj profesionalan oglas za stan ili kuću uz pomoć AI-ja.",
+    "Brzo generiraj profesionalan oglas za stan, kuću, vozilo, posao ili uslugu uz pomoć AI-ja.",
 };
 
 export default function RootLayout({
@@ -47,7 +47,7 @@ export default function RootLayout({
           </header>
 
           {/* CONTENT */}
-          <main className="flex-1">
+          <main className="flex-1" style={{ background: "#f9f9f9" }}>
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-10">
               {children}
             </div>
@@ -58,7 +58,7 @@ export default function RootLayout({
             <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
               <p className="text-xs md:text-sm text-slate-500">
                 © {new Date().getFullYear()} kreirajoglas.com · MVP projekt za
-                generiranje oglasa za nekretnine.
+                generiranje AI oglasa za nekretnine i druge kategorije.
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
